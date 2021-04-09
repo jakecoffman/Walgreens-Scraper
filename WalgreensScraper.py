@@ -1,71 +1,38 @@
-from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.common.keys import Keys
 import time
-import smtplib
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions
+from selenium.webdriver.support.wait import WebDriverWait
 
-def watchZipCode(zips, number, carrier, fromEmail, fromEmailPass):
-    hasBeenSeen = {}
-    for zipCode in zips:
-        hasBeenSeen[zipCode] = False
 
+def watch_zip_code(zip_code):
     driver = webdriver.Chrome()
     driver.get("https://www.walgreens.com/findcare/vaccination/covid-19")
     btn = driver.find_element_by_css_selector('span.btn.btn__blue')
-    btn.click()
-    driver.get("https://www.walgreens.com/findcare/vaccination/covid-19/location-screening")
+
+    action = webdriver.ActionChains(driver)
+    action.move_to_element(btn)
+    action.click()
+    action.perform()
+
+    element = WebDriverWait(driver, 10).until(
+        expected_conditions.presence_of_element_located((By.ID, "inputLocation"))
+    )
+    element.clear()
+    element.send_keys(zip_code)
+    button = driver.find_element_by_css_selector("button.btn")
+
     while True:
+        button.click()
+        alert_element = WebDriverWait(driver, 10).until(
+            expected_conditions.presence_of_element_located((By.CSS_SELECTOR, "p.fs16"))
+        )
+        if alert_element.text == "Appointments available!":
+            print("APPOINTMENT FOUND! ZIP CODE: ", zip_code)
+            return
 
-        for zipCode in zips:
-            driver.get("https://www.walgreens.com/findcare/vaccination/covid-19/location-screening")
-            element = driver.find_element_by_id("inputLocation")
-            element.clear()
-            element.send_keys(zipCode)
-            button = driver.find_element_by_css_selector("button.btn")
-            button.click()
-
-            time.sleep(0.75)
-            alertElement = getAlertElement(driver)
-            aptFound = alertElement.text == "Appointments available!"
-
-            if aptFound and not hasBeenSeen[zipCode]:
-                print("======================APPOINTMENT FOUND! ZIP CODE: "+zipCode+"======================")
-                message = "APPOINTMENT FOUND! ZIP CODE: "+zipCode
-                sendText(number, carrier, fromEmail, fromEmailPass, message)
-                hasBeenSeen[zipCode] = True
-            elif not aptFound:
-                hasBeenSeen[zipCode] = False
-
-            time.sleep(5)
-
-
-def getAlertElement(driver):
-    while True:
-        try:
-            alertElement = driver.find_element_by_css_selector("p.fs16")
-            return alertElement
-        except NoSuchElementException:
-            time.sleep(0.5)
-
-
-def sendText(number, carrier, fromEmail, fromEmailPass, message):
-    carriers = {
-        'att': '@mms.att.net',
-        'tmobile': ' @tmomail.net',
-        'verizon': '@vtext.com',
-        'sprint': '@page.nextel.com'
-    }
-
-    to_number = number+'{}'.format(carriers[carrier])
-    Subject = 'Subject: Covid Vaccine:\n\n'
-    footer = '- Test'  # add test footer
-    conn = smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465)
-    conn.ehlo()
-    conn.login(fromEmail, fromEmailPass)
-    conn.sendmail(fromEmail, to_number, Subject + message)
-    conn.quit()
+        time.sleep(5)
 
 
 if __name__ == "__main__":
-    zips = ["zip1", "zip2"]
-    watchZipCode(zips, "<phone_number>", "<carrier>", "<from_email>",  "<from_email_password>")
+    watch_zip_code(63119)
